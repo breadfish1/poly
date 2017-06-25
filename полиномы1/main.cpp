@@ -24,9 +24,9 @@ public:
     polynom operator *(double x);           // умножение полинома на double
     polynom &operator =(const polynom &a);  // присваивание
     polynom &operator +=(const polynom &a); // плюс присвоить полином
+    polynom &operator +=(double x);         // прибавить число к полиному
     polynom &operator *=(const polynom &a); // умножить присвоить полином
     polynom &operator *= (double x);        // умножить присвоить полином (double)
-    void NewElement(double numb, int exp);  // добавить новый член в полином ПОТОМ УБРАТЬ
     double Point(double x);                 // вычислить значение в точке
     friend ostream &operator <<(ostream &out, const polynom &x);
 private:
@@ -49,15 +49,19 @@ public:
 };
 
 /*----------------DEAL WITH NET START----------------*/
-void CreateNet(point *x, int quantity, polynom &c, double a, double b) {
+double Count(double x) {
+    return 5*x*x*x*x*x+3*x*x*x*x+2*x*x*x+4*x*x;
+}
+
+void CreateNet(point *x, int quantity, double a, double b) {
     double shift = (b - a)/(quantity - 1);
     
     for (int i = 0; i < quantity - 1; i++) {
         x[i].x = a + shift*i;
-        x[i].y = c.Point(x[i].x);
+        x[i].y = Count(x[i].x);
     }
     x[quantity - 1].x = b;
-    x[quantity - 1].y = c.Point(x[quantity - 1].x);
+    x[quantity - 1].y = Count(x[quantity - 1].x);
 }
 
 void PrintNet(point *x, int quantity) {
@@ -70,7 +74,6 @@ class lagrange {
 public:
     lagrange(point *net, int quantity);
     double Result(double z); // поиск значения в точке z
-    void PrintNet(int quantity, double a, double b);
     friend ostream &operator <<(ostream &out, const lagrange &l);
 private:
     polynom *x;
@@ -81,7 +84,6 @@ class newton {
 public:
     newton(point *net, int quantity);
     double Result(double z);
-    void PrintNet(int quantity, double a, double b);
     friend ostream &operator <<(ostream &out, const newton &n);
 private:
     polynom *x;
@@ -213,6 +215,12 @@ node *polynom::Copy(node *a) { // скопировать список a, воз�
 }
 
 node *polynom::Unite(node *const a, node *b) { // сложение двух полиномов
+    if (a == NULL) // ПРОВЕРЯТЬ В ОПЕРАТОРЕ
+        return Copy(b);
+    
+    if (b == NULL)
+        return Copy(a);
+    
     node *temp = Copy(a);
     
     while (b != NULL && temp != NULL) {
@@ -283,15 +291,14 @@ polynom &polynom::operator =(const polynom &a) { // присваивание
 }
 
 polynom &polynom::operator +=(polynom const &a) { // плюс присвоить полином
-    if (this->head == NULL) {
-        this->head = Copy(a.head);
-        return *this;
-    }
+    if (a.head != NULL)
+        head = Unite(head, a.head);
     
-    if (a.head == NULL)
-        return *this;
-    
-    head = Unite(head, a.head);
+    return *this;
+}
+
+polynom &polynom::operator +=(double x) { // прибавить число к полиному
+    head = FindInsert(head, x, 0);
     
     return *this;
 }
@@ -319,6 +326,8 @@ ostream &operator <<(ostream &out, const polynom &x) {
     
     if (temp)
         out << temp->number << "*x^" << temp->exponent << " ";
+    else
+        return out;
     temp = temp->next;
     
     while (temp) {
@@ -329,26 +338,27 @@ ostream &operator <<(ostream &out, const polynom &x) {
     
     return out;
 }
-
-void polynom::NewElement(double numb, int exp) { // добавить новый член в полином
-    head = FindInsert(head, numb, exp);
-}
 /*-------------------------------------------PUBLIC PART END (POLYNOM)-------------------------------------------*/
 
 /*-------------------------------------------START (LAGRANGE)-------------------------------------------*/
 polynom lagrange::Base(point *net, int quantity, int i) {
-    polynom c(1.0, 0), a, temp, reserve(1.0, 1);
+    polynom c(1.0, 0), reserve(1.0, 1);
     double zn = 1.0;
     
-    for (int j = 0; j < quantity; j++) // РАЗДЕЛИТЬ НА 2 ЦИКЛА
-        if (j != i) {
-            temp = reserve;
-            a.NewElement(-net[j].x, 0);
-            temp += a;
-            a.NewElement(net[j].x, 0);
-            c *= temp;
-            zn *= net[i].x - net[j].x;
-        }
+    for (int j = 0; j < i; j++) {
+        reserve += -net[j].x;
+        c *= reserve;
+        reserve += net[j].x;
+        zn *= net[i].x - net[j].x;
+    }
+    
+    for (int j = i + 1; j < quantity; j++) {
+        reserve += -net[j].x;
+        c *= reserve;
+        reserve += net[j].x;
+        zn *= net[i].x - net[j].x;
+    }
+    
     zn = net[i].y/zn;
     c *= zn;
     
@@ -366,15 +376,8 @@ double lagrange::Result(double z) {
     return x->Point(z);
 }
 
-void lagrange::PrintNet(int quantity, double a, double b) {
-    point lagr[quantity];
-    
-    CreateNet(lagr, quantity, *x, a, b);
-    ::PrintNet(lagr, quantity);
-}
-
 ostream &operator <<(ostream &out, const lagrange &l) {
-    out << *(l.x) << endl;
+    out << *(l.x);
     return out;
 }
 /*-------------------------------------------END (LAGRANGE)-------------------------------------------*/
@@ -383,15 +386,17 @@ ostream &operator <<(ostream &out, const lagrange &l) {
 newton::newton(point *net, int quantity) {
     double *diff = Diff1Stroke(net, quantity);
     x = new polynom;
-    polynom temp(1.0, 0), res(1.0, 1);
-    x->NewElement(diff[0], 0);
+    polynom res(1.0, 1), temp(1.0, 0);
+    *x += diff[0];
     
     for (int i = 1; i < quantity; i++) {
-        res.NewElement(-net[i - 1].x, 0); // + ПЕРЕГРУЗКА ПОЛИНОМ + double
+        res += -net[i - 1].x;
         temp *= res;
+        res += net[i - 1].x;
         *x += temp * diff[i];
-        res.NewElement(net[i - 1].x, 0);
     }
+    
+    delete [] diff;
 }
 
 double *newton::Diff1Stroke(point *net, int quantity) {
@@ -412,52 +417,28 @@ double *newton::Diff1Stroke(point *net, int quantity) {
     }
     
     delete [] c;
-    return result; // ЧИСТИТЬ result
+    return result;
 }
 
 double newton::Result(double z) {
     return x->Point(z);
 }
 
-void newton::PrintNet(int quantity, double a, double b) {
-    point newt[quantity];
-    
-    CreateNet(newt, quantity, *x, a, b);
-    ::PrintNet(newt, quantity);
-}
-
 ostream &operator <<(ostream &out, const newton &n) {
-    out << *(n.x) << endl;
+    out << *(n.x);
     return out;
 }
 /*-------------------------------------------END (NEWTON)-------------------------------------------*/
 
 int main() {
-    polynom x(5, 5);
-    polynom y(15, 9);
-    
-    x.NewElement(3, 4);
-    x.NewElement(2, 3);
-    x.NewElement(4, 2);
-    
-    y.NewElement(9, 8);
-    y.NewElement(6, 7);
-    y.NewElement(12, 6);
-    
-    cout << x;
-    
+    cout << "5*x^5 + 3*x^4 + 2*x^3 + 4*x^2" << endl;
     point a[POINTS];
-    CreateNet(a, POINTS, x, 0.5, 2.9);
+    CreateNet(a, POINTS, 0.5, 2.3);
     PrintNet(a, POINTS);
-    cout << endl;
     
     lagrange l(a, POINTS);
     cout << l;
-    l.PrintNet(POINTS, 0.5, 2.9);
-    cout << endl;
     
     newton n(a, POINTS);
     cout << n;
-    n.PrintNet(POINTS, 0.5, 2.9);
-    cout << endl;
 }
