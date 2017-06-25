@@ -1,6 +1,7 @@
 #include <iostream>
 #include <assert.h>
 #include <cmath>
+#include <iomanip>
 #define double_NULL 0.00000001
 #define POINTS 4
 
@@ -29,18 +30,16 @@ public:
     polynom &operator *= (double x);        // умножить присвоить полином (double)
     double Point(double x);                 // вычислить значение в точке
     friend ostream &operator <<(ostream &out, const polynom &x);
-    void NewElement(double numb, int exp);
-//private:
+private:
     node *head;
     node *AddHead(node *h, double numb, int exp);    // добавить голову
     node *DelHead(node *h);                          // удалить голову
     node *Delete(node *h);                           // очистить список h
     void AddAfter(node *x, double n, int p);         // добавить элемент после x
     void DelAfter(node *x);                          // удалить элемент после x
-    node *Unite(node *const a, node *b);             // сложение двух полиномов
-    node *Multiple(node *const a, node *b);          // умножение двух полиномов
+    node *Unite(node *const a, node *const b);       // сложение двух полиномов
+    node *Multiple(node *const a, node *const b);    // умножение двух полиномов
     node *AddNumber(node *a, double numb);           // найти место в списке a и вставить его
-    node *FindInsertTemp(node *a, double numb, int exp);
     node *Copy(node *a);                             // скопировать список a, возвращает указатель на новый
 };
 
@@ -67,6 +66,7 @@ void CreateNet(point *x, int quantity, double a, double b) {
 }
 
 void PrintNet(point *x, int quantity) {
+    cout.setf(ios::scientific);
     for (int i = 0; i < quantity; i++)
         cout << "x = " << x[i].x << ", y = " << x[i].y << endl;
 }
@@ -212,38 +212,31 @@ node *polynom::Copy(node *a) { // скопировать список a, воз�
     return temp;
 }
 
-node *polynom::Unite(node *const a, node *b) { // сложение двух полиномов
+node *polynom::Unite(node *const a, node *const b) { // сложение двух полиномов
+    node *temp = Copy(a), *temp_head = temp, *prev = temp, *_b = b;
     
-    if (a == NULL) // ПРОВЕРЯТЬ В ОПЕРАТОРЕ
-        return Copy(b);
-    
-    if (b == NULL)
-        return Copy(a);
-    
-    node *temp = Copy(a), *temp_head = temp, *prev = temp;
-    
-    if (b->exponent > temp->exponent) { // добавляем голову один раз, если необходимо
-        temp_head = AddHead(temp_head, b->number, b->exponent);
+    if (_b->exponent > temp->exponent) { // добавляем голову один раз, если необходимо
+        temp_head = AddHead(temp_head, _b->number, _b->exponent);
         prev = temp_head;
-        b = b->next;
+        _b = _b->next;
     }
     
-    while (b != NULL && temp != NULL) {
-        if (b->exponent < temp->exponent) { // если степень меньше, то идем дальше по списку
+    while (_b != NULL && temp != NULL) {
+        if (_b->exponent < temp->exponent) { // если степень меньше, то идем дальше по списку
             prev = temp;
             temp = temp->next;
             continue;
         }
         
-        if (b->exponent > temp->exponent) { // если больше, то добавляем после предыдыщего
-            AddAfter(prev, b->number, b->exponent);
+        if (_b->exponent > temp->exponent) { // если больше, то добавляем после предыдыщего
+            AddAfter(prev, _b->number, _b->exponent);
             prev = temp;
-            b = b->next;
+            _b = _b->next;
             continue;
         }
         
-        if (b->exponent == temp->exponent) { // если член с такой степенью уже есть в списке, то прибавляем коэффициент
-            temp->number += b->number;
+        if (_b->exponent == temp->exponent) { // если член с такой степенью уже есть в списке, то прибавляем коэффициент
+            temp->number += _b->number;
             
             if (fabs(temp->number) < double_NULL) {
                 if (temp == temp_head) {
@@ -253,40 +246,65 @@ node *polynom::Unite(node *const a, node *b) { // сложение двух по
                 else
                     DelAfter(prev);
             }
-            b = b->next;
-            continue;
+            _b = _b->next;
         }
     }
     
-    while (b) { // копируем остатки в хвост
-        AddAfter(prev, b->number, b->exponent);
+    while (_b) { // копируем остатки в хвост
+        AddAfter(prev, _b->number, _b->exponent);
         prev = prev->next;
-        b = b->next;
+        _b = _b->next;
     }
     
     return temp_head;
 }
 
-node *polynom::Multiple(node *const a, node *b) { // умножение двух полиномов
-    node *copy = NULL, *temp = NULL, *temp_copy;
+node *polynom::Multiple(node *const a, node *const b) { // умножение двух полиномов
+    node *_a = a, *_b = b, *result = new node, *curr, *prev, *temp = new node;
     
-    while (b != NULL) {
-        temp = Copy(a);
-        temp_copy = temp;
-        
-        while (temp_copy) { // НЕТ СЛОЖЕНИЯ В ЯВНОМ ВИДЕ, ВСЕГО БУДЕТ 2 ЦИКЛА (ОДИН ВЛОЖЕННЫЙ)
-            temp_copy->number *= b->number;
-            temp_copy->exponent += b->exponent;
-            temp_copy = temp_copy->next;
+    result->number = _a->number * _b->number;
+    result->exponent = _a->exponent + _b->exponent; // считаем первый моном
+    result->next = NULL;
+    _b = _b->next;
+    
+    while (_a != NULL) { // идем по первому списку
+        prev = result;
+        curr = result->next;
+        while (_b != NULL) { // идем по второму
+            temp->number = _a->number * _b->number;
+            temp->exponent = _a->exponent + _b->exponent;
+            
+            if (curr != NULL) {
+                if (temp->exponent < curr->exponent) { // если степень получившегося монома меньше, то идем дальше по списку
+                    prev = curr;
+                    curr = curr->next;
+                }
+                else {
+                    if (temp->exponent == curr->exponent) { // если степени равны, то складываем их
+                        curr->number += temp->number;
+                        if (fabs(curr->number) < double_NULL)
+                            DelAfter(prev);
+                        _b = _b->next;
+                    }
+                    else { // если нашли место куда вставить
+                        AddAfter(prev, temp->number, temp->exponent);
+                        prev = curr;
+                        curr = curr->next;
+                        _b = _b->next;
+                    }
+                }
+            }
+            else {
+                AddAfter(prev, temp->number, temp->exponent);
+                curr = prev->next;
+                _b = _b->next;
+            }
         }
-        
-        copy = Unite(copy, temp);
-        
-        Delete(temp);
-        b = b->next;
+        _b = b;
+        _a = _a->next;
     }
     
-    return copy;
+    return result;
 }
 /*-------------------------------------------PRIVATE PART END (POLYNOM)-------------------------------------------*/
 
@@ -348,8 +366,15 @@ polynom &polynom::operator +=(double x) { // прибавить число к п
 }
 
 polynom &polynom::operator *=(polynom const &a) { // умножить присвоить полином
-    if (a.head != NULL)
-        head = Multiple(head, a.head);
+    if (!a.head) {
+        Delete(head);
+        return *this;
+    }
+    
+    if (!head)
+        return *this;
+    
+    head = Multiple(head, a.head);
     
     return *this;
 }
@@ -367,6 +392,8 @@ polynom &polynom::operator *=(double x) { // умножить присвоить
 
 ostream &operator <<(ostream &out, const polynom &x) {
     node *temp = x.head;
+    
+    cout.setf(ios::scientific);
     
     if (temp)
         out << temp->number << "*x^" << temp->exponent << " ";
@@ -474,73 +501,52 @@ ostream &operator <<(ostream &out, const newton &n) {
 }
 /*-------------------------------------------END (NEWTON)-------------------------------------------*/
 
-node *polynom::FindInsertTemp(node *a, double numb, int exp) { // найти место в списке a и вставить его
-    if (a == NULL || a->exponent < exp) // если головы нет, или слово нужно вставить в начало списка, то добавляем голову
-        return AddHead(a, numb, exp);
+void Print(point *p, lagrange l, newton n) {
+    int sh = 14;
     
-    node *copy = a, *prev = copy; // создаем копию структуры и отстающ. счетчик
+    cout << setw(sh) << left << "X"
+         << setw(sh) << left << "function(x)"
+         << setw(sh) << left << "Ln(x)"
+         << setw(sh) << left << "Nn(x)"
+         << endl;
     
-    while (copy != NULL) {
-        if (exp < copy->exponent) { // идем по структуре, пока степень больше тех, которые в списке, если больше, переходим к след. итерации цикла
-            prev = copy;
-            copy = copy->next;
-            continue;
-        }
-        
-        if (exp == copy->exponent) { // если член с такой степенью уже есть в списке, то прибавляем коэффициент, возвращ. голову
-            copy->number += numb;
-            if (fabs(copy->number) < double_NULL) {
-                if (copy == a) {
-                    copy = DelHead(copy);
-                    a = copy;
-                }
-                else
-                    DelAfter(prev);
-            }
-            
-            return a;
-        }
-        
-        if (exp > copy->exponent) { // если степень меньше, то вставляем после prev
-            AddAfter(prev, numb, exp);
-            return a;
-        }
-    }
+    cout.setf(ios::scientific);
     
-    AddAfter(prev, numb, exp);
-    return a;
-}
+    cout << setw(sh) << left << p[0].x
+         << setw(sh) << left << p[0].y
+         << setw(sh) << left << l.Result(p[0].x)
+         << setw(sh) << left << n.Result(p[0].x)
+         << endl;
 
-void polynom::NewElement(double numb, int exp) { // добавить новый член в полином
-    head = FindInsertTemp(head, numb, exp);
+    for (int i = 1; i < POINTS; i++) {
+        double g = (p[i - 1].x + p[i].x) / 2;
+        cout << setw(sh) << left << g
+             << setw(sh) << left << Count(g)
+             << setw(sh) << left << l.Result(g)
+             << setw(sh) << left << n.Result(g)
+             << endl;
+        
+        cout << setw(sh) << left << p[i].x
+             << setw(sh) << left << p[i].y
+             << setw(sh) << left << l.Result(p[i].x)
+             << setw(sh) << left << n.Result(p[i].x)
+             << endl;
+    }
 }
 
 int main() {
-    polynom x(5, 4);
-    polynom y(5, 4);
-    
-    x.NewElement(4, 5);
-    x.NewElement(2, 3);
-    x.NewElement(3, 1);
-    x.NewElement(1, 0);
-    
-    y.NewElement(4, 3);
-    y.NewElement(1, 2);
-    
-    //cout << x << y;
-    
-    //x.head = x.Unite(y.head, x.head);
-    
-    //cout << x;
-    
     cout << "5*x^5 + 3*x^4 + 2*x^3 + 4*x^2" << endl;
     point a[POINTS];
     CreateNet(a, POINTS, 0.5, 2.9);
     PrintNet(a, POINTS);
     
+    cout << endl;
+    
     lagrange l(a, POINTS);
-    cout << l;
+    cout << "Ln(x): " << l;
     
     newton n(a, POINTS);
-    cout << n;
+    cout << "Nn(x): "<< n << endl;
+    
+    Print(a, l, n);
 }
