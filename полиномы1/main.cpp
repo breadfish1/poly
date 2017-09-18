@@ -3,7 +3,7 @@
 #include <cmath>
 #include <iomanip>
 #define double_NULL 0.00000001
-#define POINTS 4
+#define POINTS 6
 
 using namespace std;
 
@@ -51,7 +51,8 @@ public:
 
 /*----------------DEAL WITH NET START----------------*/
 double Count(double x) {
-    return 5*x*x*x*x*x+3*x*x*x*x+2*x*x*x+4*x*x;
+    //return 5*x*x*x*x*x+3*x*x*x*x+2*x*x*x+4*x*x;
+    return sin(x);
 }
 
 void CreateNet(point *x, int quantity, double a, double b) {
@@ -108,31 +109,23 @@ node *polynom::DelHead(node *h) { // удалить голову
 }
 
 double polynom::Point(double x) { // вычислить значение в точке
-    node *temp = this->head;
-    double res = temp->number;
-    int exp = temp->exponent;
-    
-    temp = temp->next;
-    
-    while (temp) {
-        if (exp - temp->exponent > 1) {
-            res *= x;
-            exp--;
-            continue;
+
+    node *temp = head;
+    double res = 0;
+    int limit = temp->exponent;
+
+    for (int i = limit; i > 0; i--) {
+        if(temp != NULL && temp->exponent == i) {
+            res += temp->number;
+            temp = temp->next;
         }
-        
         res *= x;
+    }
+    
+    if(temp != NULL && temp->exponent == 0)
         res += temp->number;
-        exp = temp->exponent;
-        temp = temp->next;
-    }
     
-    while (exp > 0) {
-        res *= x;
-        exp--;
-    }
-    
-    return res;
+    return res; 
 }
 
 node *polynom::AddNumber(node *a, double numb) { // найти место в списке a и вставить его
@@ -439,8 +432,10 @@ polynom lagrange::Base(point *net, int quantity, int i) {
 lagrange::lagrange(point *net, int quantity) {
     x = new polynom;
     
-    for (int i = 0; i < quantity; i++)
-        *x += Base(net, quantity, i);
+    for (int i = 0; i < quantity; i++) {
+        polynom b = Base(net, quantity, i);
+        *x += b;
+    }
 }
 
 double lagrange::Result(double z) {
@@ -471,7 +466,7 @@ newton::newton(point *net, int quantity) {
 }
 
 double *newton::Diff1Stroke(point *net, int quantity) {
-    double *c = new double[quantity];
+    double c[quantity];
     double *result = new double[quantity]; // массив значений 1ой строки
     int k = 0;
     
@@ -481,13 +476,11 @@ double *newton::Diff1Stroke(point *net, int quantity) {
     k++;
     
     for (int i = quantity; i > 0; i--) {
-        for (int j = 0; j < i - 1; j++) {
+        for (int j = 0; j < i - 1; j++)
             c[j] = (c[j + 1] - c[j])/(net[quantity - i + j + 1].x - net[j].x);
-        }
         result[k++] = c[0];
     }
-    
-    delete [] c;
+
     return result;
 }
 
@@ -538,6 +531,7 @@ int main() {
     cout << "5*x^5 + 3*x^4 + 2*x^3 + 4*x^2" << endl;
     point a[POINTS];
     CreateNet(a, POINTS, 0.5, 2.9);
+    //CreateNet(a, POINTS, -2.0, 2.0);
     PrintNet(a, POINTS);
     
     cout << endl;
